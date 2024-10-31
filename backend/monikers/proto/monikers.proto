@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package monikers;
+
+option go_package = "monikers/proto";
+
+service Monikers {
+    rpc NewGame(NewGameRequest) returns (NewGameResponse);
+}
+
+message NewGameRequest {
+    string player_name = 1;
+}
+
+message NewGameResponse {
+    string game_id = 1;
+}

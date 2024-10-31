@@ -23,3 +23,9 @@ go.work.sum
 
 # env file
 .env
+
+# Google Cloud service account keys
+service-account-key.json
+
+# macOS .DS_Store files
+.DS_Store
