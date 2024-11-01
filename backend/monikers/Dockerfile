@@ -4,7 +4,7 @@ FROM golang:1.23
 # Set the working directory
 WORKDIR /app
 
-# Copy the Go modules manifests
+# Copy Go modules manifests
 COPY go.mod go.sum ./
 
 # Download dependencies
@@ -17,8 +17,8 @@ COPY . .
 COPY service-account-key.json /app/service-account-key.json
 RUN chmod 600 /app/service-account-key.json
 
+# Set environment variables
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
-ENV PORT=8080
 
 # Build the application
 RUN go build -o server .
