@@ -32,3 +32,5 @@ service-account-key.json
 
 # Node modules
 node_modules/
+backend/serverless-deploy-user_accessKeys.csv
+backend/.serverless/*

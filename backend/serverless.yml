@@ -1,0 +1,21 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: prettypwnie
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: monikers-app
+service: monikers-server
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-west-1
+
+functions:
+  app:
+    handler: server.handler
+    events:
+      - http:
+          path: /new-game
+          method: get
+
+plugins:
+  - serverless-offline
