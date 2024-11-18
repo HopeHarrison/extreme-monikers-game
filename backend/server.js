@@ -11,6 +11,17 @@ const app = express();
 // Middleware to parse JSON requests
 app.use(express.json());
 
+// Define the new GameState type
+// interface GameState {
+//   gameId: string;
+//   teams: { players: string[]; score: number }[];
+//   cards: { title: string; description: string; cardId: number }[];
+//   timeLeft: number;
+//   playerTurn: string;
+//   state: 'JOIN' | 'READY' | 'ROUND' | 'COMPLETE'; // You can add more states if needed
+//   roundNumber: number;
+// }
+
 // Function to generate a unique game ID from 4 random words
 function generateGameID() {
   const words = generate({ exactly: 4, maxLength: 5 }); // Generate 4 random words
@@ -19,8 +30,21 @@ function generateGameID() {
 
 // Define migrations
 const migrations = [
+   {
+      version: 9,
+      sql: `
+          SET FOREIGN_KEY_CHECKS = 0;
+          DROP TABLE IF EXISTS wonCards;
+          DROP TABLE IF EXISTS skippedCards;
+          DROP TABLE IF EXISTS turns;
+          DROP TABLE IF EXISTS cards;
+          DROP TABLE IF EXISTS players;
+          DROP TABLE IF EXISTS games;
+          SET FOREIGN_KEY_CHECKS = 1;
+      `
+  },
   {
-    version: 1,
+    version: 10,
     sql: `
       CREATE TABLE IF NOT EXISTS games (
         id VARCHAR(255) NOT NULL PRIMARY KEY,
@@ -29,22 +53,23 @@ const migrations = [
 
       CREATE TABLE IF NOT EXISTS players (
         gameId VARCHAR(255),
-        playerName VARCHAR(255) NOT NULL UNIQUE,
+        playerName VARCHAR(255) NOT NULL,
         team INT,
         timeJoined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (gameId) REFERENCES games(id) ON DELETE CASCADE
+        FOREIGN KEY (gameId) REFERENCES games(id) ON DELETE CASCADE,
+        PRIMARY KEY (gameId, playerName)
       );
 
       CREATE TABLE IF NOT EXISTS cards (
-        id VARCHAR(255) NOT NULL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL UNIQUE,
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        title TEXT NOT NULL,
         description TEXT,
         playerNameCreatedBy VARCHAR(255),
         FOREIGN KEY (playerNameCreatedBy) REFERENCES players(playerName) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS turns (
-        id VARCHAR(255) NOT NULL PRIMARY KEY,
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
         gameId VARCHAR(255),
         roundNumber INT,
         turnNumber INT,
@@ -97,17 +122,16 @@ async function applyMigrations(connection) {
     );
   `);
 
+  // Get the most recent migration version
+  const [recentVersionRows] = await connection.query(`SELECT MAX(version) AS version FROM ${migrationsTable}`);
+  const recentVersion = recentVersionRows[0].version || 0; // Default to 0 if no migrations exist
+
+  // Apply new migrations
   for (const migration of migrations) {
-    const [rows] = await connection.query(`SELECT version FROM ${migrationsTable} WHERE version = ?`, [migration.version]);
-    if (rows.length === 0) {
-      // Split the SQL statements and execute them one by one
-      const sqlStatements = migration.sql.split(';').filter(stmt => stmt.trim());
-      for (const statement of sqlStatements) {
-        await connection.query(statement);
-      }
-      // Record migration
+    if (migration.version > recentVersion) {
+      await connection.query(migration.sql);
       await connection.query(`INSERT INTO ${migrationsTable} (version) VALUES (?)`, [migration.version]);
-      console.log(`Migration ${migration.version} applied successfully`);
+      console.log(`Applied migration version ${migration.version}`);
     }
   }
 }
