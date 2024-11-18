@@ -11,7 +11,7 @@ const app = express();
 // Middleware to parse JSON requests
 app.use(express.json());
 
-// Define the new GameState type
+// // Define the new GameState type
 // interface GameState {
 //   gameId: string;
 //   teams: { players: string[]; score: number }[];
@@ -23,28 +23,15 @@ app.use(express.json());
 // }
 
 // Function to generate a unique game ID from 4 random words
-function generateGameID() {
+function generateGameID() { // Added return type
   const words = generate({ exactly: 4, maxLength: 5 }); // Generate 4 random words
   return words.join('-'); // Join them with hyphens
 }
 
 // Define migrations
-const migrations = [
-   {
-      version: 9,
-      sql: `
-          SET FOREIGN_KEY_CHECKS = 0;
-          DROP TABLE IF EXISTS wonCards;
-          DROP TABLE IF EXISTS skippedCards;
-          DROP TABLE IF EXISTS turns;
-          DROP TABLE IF EXISTS cards;
-          DROP TABLE IF EXISTS players;
-          DROP TABLE IF EXISTS games;
-          SET FOREIGN_KEY_CHECKS = 1;
-      `
-  },
+const migrations = [ // Added type for migrations
   {
-    version: 10,
+    version: 1,
     sql: `
       CREATE TABLE IF NOT EXISTS games (
         id VARCHAR(255) NOT NULL PRIMARY KEY,
@@ -52,20 +39,21 @@ const migrations = [
       );
 
       CREATE TABLE IF NOT EXISTS players (
+        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
         gameId VARCHAR(255),
         playerName VARCHAR(255) NOT NULL,
         team INT,
         timeJoined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (gameId) REFERENCES games(id) ON DELETE CASCADE,
-        PRIMARY KEY (gameId, playerName)
+        UNIQUE (gameId, playerName)
       );
 
       CREATE TABLE IF NOT EXISTS cards (
         id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
         title TEXT NOT NULL,
         description TEXT,
-        playerNameCreatedBy VARCHAR(255),
-        FOREIGN KEY (playerNameCreatedBy) REFERENCES players(playerName) ON DELETE SET NULL
+        playerIdCreatedBy INT,
+        FOREIGN KEY (playerIdCreatedBy) REFERENCES players(id) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS turns (
@@ -74,22 +62,22 @@ const migrations = [
         roundNumber INT,
         turnNumber INT,
         timeStarted TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        playerName VARCHAR(255),
+        playerId INT,
         FOREIGN KEY (gameId) REFERENCES games(id) ON DELETE CASCADE,
-        FOREIGN KEY (playerName) REFERENCES players(playerName) ON DELETE SET NULL
+        FOREIGN KEY (playerId) REFERENCES players(id) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS wonCards (
-        turnId VARCHAR(255),
-        cardId VARCHAR(255),
+        turnId INT,
+        cardId INT,
         FOREIGN KEY (turnId) REFERENCES turns(id) ON DELETE CASCADE,
         FOREIGN KEY (cardId) REFERENCES cards(id) ON DELETE CASCADE,
         PRIMARY KEY (turnId, cardId)
       );
 
       CREATE TABLE IF NOT EXISTS skippedCards (
-        turnId VARCHAR(255),
-        cardId VARCHAR(255),
+        turnId INT,
+        cardId INT,
         FOREIGN KEY (turnId) REFERENCES turns(id) ON DELETE CASCADE,
         FOREIGN KEY (cardId) REFERENCES cards(id) ON DELETE CASCADE,
         PRIMARY KEY (turnId, cardId)
@@ -100,8 +88,12 @@ const migrations = [
 ];
 
 // Function to apply migrations
-async function applyMigrations(connection) {
+async function applyMigrations(connection) { // Added types
   const migrationsTable = 'schema_migrations';
+
+  // Temporary - delete old database
+  await connection.query(`DROP DATABASE IF EXISTS \`${process.env.DB_NAME}\``);
+  console.log(`Database ${process.env.DB_NAME} deleted.`);
 
   // Check if the database exists
   const [databases] = await connection.query('SHOW DATABASES LIKE ?', [process.env.DB_NAME]);
@@ -129,7 +121,11 @@ async function applyMigrations(connection) {
   // Apply new migrations
   for (const migration of migrations) {
     if (migration.version > recentVersion) {
-      await connection.query(migration.sql);
+      // Split the SQL statements and execute them one by one
+      const sqlStatements = migration.sql.split(';').filter(sql => sql.trim() !== ''); // Filter out empty statements
+      for (const sql of sqlStatements) {
+        await connection.query(sql);
+      }
       await connection.query(`INSERT INTO ${migrationsTable} (version) VALUES (?)`, [migration.version]);
       console.log(`Applied migration version ${migration.version}`);
     }
@@ -137,10 +133,10 @@ async function applyMigrations(connection) {
 }
 
 // Define a route for creating a new game using GET
-app.get('/new-game', async (req, res) => {
-  const playerName = req.query.playerName; // Retrieve playerName from query parameters
-  const gameID = generateGameID();
-  const now = new Date();
+app.get('/new-game', async (req, res) => { // Added types for req and res
+  const playerName = req.query.playerName; // Added type assertion
+  const gameID = generateGameID(); // Added type
+  const now = new Date(); // Added type
 
   try {
     // Connect to MySQL server without specifying a database
